@@ -1,0 +1,21 @@
+<!doctype html>
+<html><head>
+<meta charset="utf-8"><title>Umar Office Tracker</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/css/variables.css">
+<link rel="stylesheet" href="/css/global.css">
+</head><body>
+<div class="container center" style="padding-top:40vh">
+  <h1>Umar Office Tracker</h1>
+  <p class="muted">Loading…</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/js/supabase.js"></script>
+<script>
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  location.replace(session ? '/pages/dashboard.html' : '/pages/login.html');
+})();
+</script>
+</body></html>

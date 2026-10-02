@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Calendar · UOT</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/css/variables.css">
+<link rel="stylesheet" href="/css/global.css">
+<link rel="stylesheet" href="/css/mobile.css">
+<link rel="stylesheet" href="/css/components.css">
+<link rel="stylesheet" href="/css/calendar.css">
+</head><body>
+<div class="topbar"><h1>Calendar</h1></div>
+<div class="container">
+  <div class="card" id="cal"></div>
+</div>
+<nav class="bottomnav">
+  <a href="/pages/dashboard.html"><span class="icon">🏠</span>Home</a>
+  <a href="/pages/calendar.html" class="active"><span class="icon">📅</span>Calendar</a>
+  <a href="/pages/reports.html"><span class="icon">📊</span>Reports</a>
+</nav>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/js/supabase.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/calculator.js"></script>
+<script src="/js/attendance.js"></script>
+<script src="/js/calendar.js"></script>
+<script>
+(async () => {
+  const session = await UOT.requireSession(); if (!session) return;
+  const now = new Date();
+  UOT.renderCalendar(session.user.id, now.getFullYear(), now.getMonth(),
+    document.getElementById('cal'));
+})();
+</script>
+</body></html>

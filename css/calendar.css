@@ -1,0 +1,16 @@
+.cal-header { display: grid; grid-template-columns: repeat(7,1fr); gap:4px; margin-bottom:6px; }
+.cal-header span { text-align:center; font-size:11px; color:var(--muted); }
+.cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap:4px; }
+.cal-cell {
+  aspect-ratio: 1; border-radius: 8px; background: var(--bg-soft);
+  border: 1px solid var(--line); padding: 4px; font-size: 11px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  cursor: pointer; color: var(--text);
+}
+.cal-cell.empty { background: transparent; border: none; cursor: default; }
+.cal-cell .d { font-weight: 600; font-size: 12px; }
+.cal-cell .b { font-size: 9px; }
+.cal-cell.present { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.4); }
+.cal-cell.absent  { background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.4); }
+.cal-cell.leave   { background: rgba(245,158,11,.18); border-color: rgba(245,158,11,.4); }
+.cal-cell.today { outline: 2px solid var(--accent); }

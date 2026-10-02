@@ -1,0 +1,158 @@
+<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Dashboard · UOT</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/css/variables.css">
+<link rel="stylesheet" href="/css/global.css">
+<link rel="stylesheet" href="/css/mobile.css">
+<link rel="stylesheet" href="/css/components.css">
+</head><body>
+<div class="topbar">
+  <h1>Hi, <span id="userName">…</span></h1>
+  <button class="btn secondary" style="width:auto;padding:6px 12px" id="logoutBtn">Logout</button>
+</div>
+
+<div class="container">
+  <div class="card stack">
+    <div class="row between">
+      <h2 id="todayDate">Today</h2>
+      <span id="statusPill" class="pill info">—</span>
+    </div>
+    <div class="stat"><span class="k">Office time</span><span class="v" id="vOffice">0h 00m</span></div>
+    <div class="stat"><span class="k">Outside time</span><span class="v" id="vOutside">0h 00m</span></div>
+    <div class="stat"><span class="k">Balance today</span><span class="v" id="vBalance">0h 00m</span></div>
+    <div class="stat"><span class="k">Location</span><span class="v" id="vGeo">checking…</span></div>
+  </div>
+
+  <div class="card stack" style="margin-top:12px">
+    <div class="row between">
+      <h3>Session</h3>
+      <span class="muted" id="sessionInfo">No open session</span>
+    </div>
+    <button id="inBtn"  class="btn good">Check IN</button>
+    <button id="outBtn" class="btn danger">Check OUT</button>
+  </div>
+
+  <div class="card stack" style="margin-top:12px">
+    <h3>This month</h3>
+    <div id="monthSummary" class="muted">Loading…</div>
+  </div>
+</div>
+
+<nav class="bottomnav">
+  <a href="/pages/dashboard.html" class="active"><span class="icon">🏠</span>Home</a>
+  <a href="/pages/calendar.html"><span class="icon">📅</span>Calendar</a>
+  <a href="/pages/reports.html"><span class="icon">📊</span>Reports</a>
+  <a href="/pages/employees.html" id="navAdmin" class="hidden"><span class="icon">👥</span>Team</a>
+</nav>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/js/supabase.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/calculator.js"></script>
+<script src="/js/geolocation.js"></script>
+<script src="/js/attendance.js"></script>
+<script src="/js/reports.js"></script>
+<script src="/js/settings.js"></script>
+<script>
+(async () => {
+  const session = await UOT.requireSession(); if (!session) return;
+  const userId = session.user.id;
+  const profile = await UOT.getProfile(userId);
+  const membership = await UOT.getMembership(userId);
+  if (!membership) {
+    UOT.toast('No organization assigned — ask admin to add you.');
+    return;
+  }
+  const orgId = membership.organization_id;
+
+  document.getElementById('userName').textContent =
+    profile?.full_name?.split(' ')[0] || session.user.email;
+  if (membership.role === 'admin') document.getElementById('navAdmin').classList.remove('hidden');
+
+  document.getElementById('logoutBtn').onclick = UOT.logout;
+
+  const officeLoc = await UOT.loadOfficeLocation(orgId);
+
+  async function refresh() {
+    const day = UOT.todayISO();
+    document.getElementById('todayDate').textContent = UOT.fmtDate(day);
+
+    const [sessions, rec, open] = await Promise.all([
+      UOT.getDaySessions(userId, day),
+      UOT.getDay(userId, day),
+      UOT.getOpenSession(userId)
+    ]);
+
+    document.getElementById('vOffice').textContent  = UOT.hm(rec?.total_office_minutes || 0);
+    document.getElementById('vOutside').textContent = UOT.hm(rec?.outside_minutes || 0);
+    const bal = rec?.balance_minutes || 0;
+    document.getElementById('vBalance').textContent = UOT.hm(bal);
+
+    const pill = document.getElementById('statusPill');
+    pill.textContent = rec?.status || (sessions.length ? 'present' : '—');
+    pill.className = 'pill ' + (rec?.status === 'absent' ? 'bad' :
+                                rec?.status === 'leave'  ? 'warn' : 'good');
+
+    document.getElementById('sessionInfo').textContent = open
+      ? `Open since ${UOT.fmtTime(open.check_in)}` : 'No open session';
+
+    document.getElementById('inBtn').disabled  = !!open;
+    document.getElementById('outBtn').disabled = !open;
+
+    const now = new Date();
+    const mr = await UOT.monthlyReport(userId, now.getFullYear(), now.getMonth());
+    document.getElementById('monthSummary').innerHTML = `
+      <div class="stat"><span class="k">Target</span><span class="v">${UOT.hm(mr.target)}</span></div>
+      <div class="stat"><span class="k">Worked</span><span class="v">${UOT.hm(mr.totals.office)}</span></div>
+      <div class="stat"><span class="k">Outside</span><span class="v">${UOT.hm(mr.totals.outside)}</span></div>
+      <div class="stat"><span class="k">Balance</span>
+        <span class="v"><span class="pill ${mr.delta>=0?'good':'bad'}">${UOT.hm(mr.delta)}</span></span></div>`;
+  }
+
+  (async () => {
+    try {
+      const pos = await UOT.getPosition();
+      if (officeLoc) {
+        const { inside, distance } = UOT.insideGeofence(pos, officeLoc);
+        document.getElementById('vGeo').textContent =
+          `${inside ? 'Inside' : 'Outside'} office (${distance}m)`;
+      } else {
+        document.getElementById('vGeo').textContent = 'No office set';
+      }
+    } catch {
+      document.getElementById('vGeo').textContent = 'Unavailable';
+    }
+  })();
+
+  document.getElementById('inBtn').onclick = async () => {
+    try {
+      let coords = null;
+      try {
+        const pos = await UOT.getPosition();
+        coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        if (officeLoc) {
+          const g = UOT.insideGeofence(pos, officeLoc);
+          coords.inside = g.inside;
+          if (!g.inside && !confirm(`You are ${g.distance}m from office. Check in anyway?`)) return;
+        }
+      } catch {}
+      await UOT.checkIn(userId, orgId, coords);
+      UOT.toast('Checked in');
+      refresh();
+    } catch (e) { UOT.toast(e.message); }
+  };
+
+  document.getElementById('outBtn').onclick = async () => {
+    try { await UOT.checkOut(userId, orgId); UOT.toast('Checked out'); refresh(); }
+    catch (e) { UOT.toast(e.message); }
+  };
+
+  refresh();
+  setInterval(refresh, 60000);
+})();
+</script>
+</body></html>
