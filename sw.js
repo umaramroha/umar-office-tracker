@@ -1,4 +1,4 @@
-const CACHE = 'uot-v1';
+const CACHE = 'uot-v2-' + Date.now();
 const ASSETS = [
   '/', '/index.html',
   '/pages/login.html', '/pages/dashboard.html', '/pages/calendar.html',
