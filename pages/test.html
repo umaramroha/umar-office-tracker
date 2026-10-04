@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Debug</title>
+<style>
+body { background: #111; color: #0f0; font-family: monospace; padding: 16px; font-size: 12px; line-height: 1.5; }
+.err { color: #f00; }
+.ok { color: #0f0; }
+</style>
+</head>
+<body>
+<pre id="out">Starting...\n</pre>
+
+<script>
+window.onerror = function(msg, url, line) {
+  const pre = document.getElementById('out');
+  pre.textContent += '❌ ERROR: ' + msg + ' @ ' + url + ':' + line + '\n';
+};
+
+const log = (msg) => {
+  document.getElementById('out').textContent += msg + '\n';
+};
+
+log('Step 1: page loaded');
+
+// Load library
+const s1 = document.createElement('script');
+s1.src = '/js/supabase-lib.js';
+s1.onload = () => {
+  log('Step 2: supabase-lib.js loaded');
+  log('  typeof window.supabase = ' + typeof window.supabase);
+  if (window.supabase) {
+    log('  createClient = ' + typeof window.supabase.createClient);
+  }
+  loadConfig();
+};
+s1.onerror = () => log('❌ FAILED: supabase-lib.js did not load');
+document.head.appendChild(s1);
+
+function loadConfig() {
+  const s2 = document.createElement('script');
+  s2.src = '/js/supabase.js';
+  s2.onload = () => {
+    log('Step 3: supabase.js loaded');
+    log('  typeof window.sb = ' + typeof window.sb);
+    if (window.sb) {
+      log('');
+      log('✅ SUCCESS — everything works!');
+    } else {
+      log('');
+      log('❌ FAILED — window.sb is undefined');
+    }
+  };
+  s2.onerror = () => log('❌ FAILED: supabase.js did not load');
+  document.head.appendChild(s2);
+}
+</script>
+</body>
+</html>
