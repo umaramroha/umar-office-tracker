@@ -98,3 +98,61 @@ UOT.markAbsent = async (adminId, targetUserId, orgId, day) => {
     field: 'status', old_value: existing?.status ?? null, new_value: 'absent'
   });
 };
+
+// ============ MANUAL ENTRY / EDIT ============
+
+UOT.addManualSession = async (userId, orgId, day, checkInISO, checkOutISO) => {
+  const durationMin = Math.round((new Date(checkOutISO) - new Date(checkInISO)) / 60000);
+
+  const { data, error } = await sb.from('attendance_sessions').insert({
+    user_id: userId,
+    day: day,
+    check_in: checkInISO,
+    check_out: checkOutISO,
+    duration_minutes: durationMin,
+    source: 'manual'
+  }).select().single();
+  if (error) throw error;
+
+  await sb.from('attendance_events').insert({
+    user_id: userId,
+    session_id: data.id,
+    event_type: 'in',
+    event_time: checkInISO
+  });
+
+  await sb.from('audit_logs').insert({
+    user_id: userId,
+    actor_id: userId,
+    table_name: 'attendance_sessions',
+    record_id: data.id,
+    field: 'manual_add',
+    old_value: null,
+    new_value: checkInISO + ' to ' + checkOutISO
+  });
+
+  await UOT.recomputeDay(userId, orgId, day);
+  return data;
+};
+
+UOT.deleteSession = async (userId, orgId, sessionId) => {
+  const { data: old } = await sb.from('attendance_sessions')
+    .select('*').eq('id', sessionId).single();
+  if (!old) throw new Error('Session not found');
+
+  await sb.from('audit_logs').insert({
+    user_id: userId,
+    actor_id: userId,
+    table_name: 'attendance_sessions',
+    record_id: sessionId,
+    field: 'manual_delete',
+    old_value: old.check_in + ' to ' + (old.check_out || 'open'),
+    new_value: null
+  });
+
+  const { error } = await sb.from('attendance_sessions')
+    .delete().eq('id', sessionId);
+  if (error) throw error;
+
+  await UOT.recomputeDay(userId, orgId, old.day);
+};

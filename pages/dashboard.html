@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/css/mobile.css">
 <link rel="stylesheet" href="/css/components.css">
 </head><body>
+
 <div class="topbar">
   <h1>Hi, <span id="userName">…</span></h1>
   <button class="btn secondary" style="width:auto;padding:6px 12px" id="logoutBtn">Logout</button>
@@ -33,6 +34,7 @@
     </div>
     <button id="inBtn"  class="btn good">Check IN</button>
     <button id="outBtn" class="btn danger">Check OUT</button>
+    <button id="manualBtn" class="btn secondary" style="margin-top:8px">Manual Entry / Edit</button>
   </div>
 
   <div class="card stack" style="margin-top:12px">
@@ -42,11 +44,40 @@
 </div>
 
 <nav class="bottomnav">
-  <a href="/pages/dashboard" class="active"><span class="icon">🏠</span>Home</a>
-  <a href="/pages/calendar"><span class="icon">📅</span>Calendar</a>
-  <a href="/pages/reports"><span class="icon">📊</span>Reports</a>
-  <a href="/pages/employees" id="navAdmin" class="hidden"><span class="icon">👥</span>Team</a>
+  <a href="/pages/dashboard.html" class="active"><span class="icon">🏠</span>Home</a>
+  <a href="/pages/calendar.html"><span class="icon">📅</span>Calendar</a>
+  <a href="/pages/reports.html"><span class="icon">📊</span>Reports</a>
+  <a href="/pages/employees.html" id="navAdmin" class="hidden"><span class="icon">👥</span>Team</a>
 </nav>
+
+<div id="manualModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto">
+  <div class="card" style="max-width:440px;width:100%;max-height:90vh;overflow-y:auto">
+    <div class="row between" style="margin-bottom:12px">
+      <h3 style="margin:0">Manual Entry</h3>
+      <button id="closeModal" class="btn secondary" style="width:auto;padding:4px 12px">X</button>
+    </div>
+
+    <div class="field">
+      <label class="label">Date</label>
+      <input id="mDay" class="input" type="date">
+    </div>
+    <div class="field">
+      <label class="label">Check In Time</label>
+      <input id="mIn" class="input" type="time">
+    </div>
+    <div class="field">
+      <label class="label">Check Out Time</label>
+      <input id="mOut" class="input" type="time">
+    </div>
+
+    <button id="mSave" class="btn good">Add Session</button>
+
+    <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">
+      <h3 style="margin:0 0 8px">Existing Sessions</h3>
+      <div id="sessionList" class="muted">Loading...</div>
+    </div>
+  </div>
+</div>
 
 <script src="/js/supabase-lib.js"></script>
 <script src="/js/supabase.js"></script>
@@ -98,7 +129,7 @@
                                 rec?.status === 'leave'  ? 'warn' : 'good');
 
     document.getElementById('sessionInfo').textContent = open
-      ? `Open since ${UOT.fmtTime(open.check_in)}` : 'No open session';
+      ? 'Open since ' + UOT.fmtTime(open.check_in) : 'No open session';
 
     document.getElementById('inBtn').disabled  = !!open;
     document.getElementById('outBtn').disabled = !open;
@@ -119,7 +150,7 @@
       if (officeLoc) {
         const { inside, distance } = UOT.insideGeofence(pos, officeLoc);
         document.getElementById('vGeo').textContent =
-          `${inside ? 'Inside' : 'Outside'} office (${distance}m)`;
+          (inside ? 'Inside' : 'Outside') + ' office (' + distance + 'm)';
       } else {
         document.getElementById('vGeo').textContent = 'No office set';
       }
@@ -137,7 +168,7 @@
         if (officeLoc) {
           const g = UOT.insideGeofence(pos, officeLoc);
           coords.inside = g.inside;
-          if (!g.inside && !confirm(`You are ${g.distance}m from office. Check in anyway?`)) return;
+          if (!g.inside && !confirm('You are ' + g.distance + 'm from office. Check in anyway?')) return;
         }
       } catch {}
       await UOT.checkIn(userId, orgId, coords);
@@ -149,6 +180,71 @@
   document.getElementById('outBtn').onclick = async () => {
     try { await UOT.checkOut(userId, orgId); UOT.toast('Checked out'); refresh(); }
     catch (e) { UOT.toast(e.message); }
+  };
+
+  // ========== MANUAL ENTRY LOGIC ==========
+  const modal = document.getElementById('manualModal');
+  const closeModal = document.getElementById('closeModal');
+  const mDay = document.getElementById('mDay');
+  const mIn = document.getElementById('mIn');
+  const mOut = document.getElementById('mOut');
+  const mSave = document.getElementById('mSave');
+  const sessionList = document.getElementById('sessionList');
+
+  mDay.value = UOT.todayISO();
+
+  async function loadSessions() {
+    const sessions = await UOT.getDaySessions(userId, mDay.value);
+    if (!sessions.length) {
+      sessionList.innerHTML = '<div class="muted">No sessions.</div>';
+      return;
+    }
+    sessionList.innerHTML = sessions.map(s => `
+      <div class="row between" style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <span style="font-size:13px">${UOT.fmtTime(s.check_in)} to ${s.check_out ? UOT.fmtTime(s.check_out) : 'active'}</span>
+        <button class="btn secondary" style="width:auto;padding:4px 8px;font-size:12px" data-del="${s.id}">Del</button>
+      </div>`).join('');
+
+    sessionList.querySelectorAll('[data-del]').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Delete this session?')) return;
+        try {
+          await UOT.deleteSession(userId, orgId, btn.dataset.del);
+          UOT.toast('Deleted');
+          loadSessions();
+          refresh();
+        } catch (e) { UOT.toast(e.message); }
+      };
+    });
+  }
+
+  document.getElementById('manualBtn').onclick = () => {
+    modal.classList.remove('hidden');
+    mDay.value = UOT.todayISO();
+    loadSessions();
+  };
+
+  closeModal.onclick = () => modal.classList.add('hidden');
+
+  mDay.onchange = () => loadSessions();
+
+  mSave.onclick = async () => {
+    if (!mIn.value || !mOut.value) return UOT.toast('Enter both times');
+
+    const day = mDay.value;
+    const inISO = new Date(day + 'T' + mIn.value + ':00').toISOString();
+    const outISO = new Date(day + 'T' + mOut.value + ':00').toISOString();
+
+    if (new Date(outISO) <= new Date(inISO)) return UOT.toast('Out time must be after In time');
+
+    try {
+      await UOT.addManualSession(userId, orgId, day, inISO, outISO);
+      UOT.toast('Session added');
+      mIn.value = '';
+      mOut.value = '';
+      loadSessions();
+      refresh();
+    } catch (e) { UOT.toast(e.message); }
   };
 
   refresh();
