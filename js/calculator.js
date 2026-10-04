@@ -1,40 +1,50 @@
-// Attendance calculation engine — no double deduction.
-const DAILY_TARGET_MIN = 540; // 9h
-
-function mergeIntervals(intervals) {
-  if (!intervals.length) return [];
-  const sorted = [...intervals].sort((a, b) => a[0] - b[0]);
-  const out = [sorted[0]];
-  for (let i = 1; i < sorted.length; i++) {
-    const last = out[out.length - 1];
-    if (sorted[i][0] <= last[1]) last[1] = Math.max(last[1], sorted[i][1]);
-    else out.push(sorted[i]);
-  }
-  return out;
-}
+// Attendance calculation engine
+const DAILY_TARGET_MIN = 540; // 9 hours
 
 function computeDay(sessions, dayStartISO, dayEndISO) {
-  const dayStart = new Date(dayStartISO).getTime();
-  const dayEnd   = new Date(dayEndISO).getTime();
   const now = Date.now();
 
-  const officeIntervals = sessions.map(s => {
-    const sIn  = Math.max(new Date(s.check_in).getTime(), dayStart);
-    const sOut = Math.min(s.check_out ? new Date(s.check_out).getTime() : now, dayEnd);
-    return [sIn, sOut];
-  }).filter(([a, b]) => b > a);
+  // No sessions = full absent
+  if (!sessions || sessions.length === 0) {
+    return {
+      total_office_minutes: 0,
+      outside_minutes: 0,
+      balance_minutes: -DAILY_TARGET_MIN
+    };
+  }
 
-  const merged = mergeIntervals(officeIntervals);
-  const officeMs = merged.reduce((sum, [a, b]) => sum + (b - a), 0);
+  // Sort sessions by check-in time
+  const sorted = [...sessions].sort(
+    (a, b) => new Date(a.check_in) - new Date(b.check_in)
+  );
 
-  const dayMs = dayEnd - now > 0 ? (now - dayStart) : (dayEnd - dayStart);
-  const outsideMs = Math.max(0, dayMs - officeMs);
+  // Office time = sum of each session's duration
+  const officeMs = sorted.reduce((sum, s) => {
+    const start = new Date(s.check_in).getTime();
+    const end = s.check_out ? new Date(s.check_out).getTime() : now;
+    return sum + Math.max(0, end - start);
+  }, 0);
+
+  // Work window = first check-in to last check-out (or now if last is open)
+  const windowStart = new Date(sorted[0].check_in).getTime();
+  const lastSession = sorted[sorted.length - 1];
+  const windowEnd = lastSession.check_out
+    ? new Date(lastSession.check_out).getTime()
+    : now;
+  const windowMs = Math.max(0, windowEnd - windowStart);
+
+  // Outside = window time MINUS office time (gaps between sessions only)
+  const outsideMs = Math.max(0, windowMs - officeMs);
 
   const totalOfficeMinutes = Math.round(officeMs / 60000);
-  const outsideMinutes     = Math.round(outsideMs / 60000);
-  const balanceMinutes     = totalOfficeMinutes - outsideMinutes - DAILY_TARGET_MIN;
+  const outsideMinutes = Math.round(outsideMs / 60000);
+  const balanceMinutes = totalOfficeMinutes - outsideMinutes - DAILY_TARGET_MIN;
 
-  return { total_office_minutes: totalOfficeMinutes, outside_minutes: outsideMinutes, balance_minutes: balanceMinutes };
+  return {
+    total_office_minutes: totalOfficeMinutes,
+    outside_minutes: outsideMinutes,
+    balance_minutes: balanceMinutes
+  };
 }
 
 function monthlyTargetMinutes(year, month) {
@@ -42,4 +52,8 @@ function monthlyTargetMinutes(year, month) {
   return days * DAILY_TARGET_MIN;
 }
 
-window.Calc = { computeDay, monthlyTargetMinutes, DAILY_TARGET_MIN, mergeIntervals };
+window.Calc = {
+  computeDay,
+  monthlyTargetMinutes,
+  DAILY_TARGET_MIN
+};
