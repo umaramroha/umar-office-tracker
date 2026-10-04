@@ -28,7 +28,7 @@ UOT.getMembership = async (userId) => {
 
 UOT.requireAdmin = async () => {
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { location.href = '/pages/login.html'; return null; }
+  if (!session) { location.href = '/pages/login'; return null; }
   const m = await UOT.getMembership(session.user.id);
   if (!m || m.role !== 'admin') { location.href = '/pages/dashboard.html'; return null; }
   return { session, membership: m };

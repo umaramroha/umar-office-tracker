@@ -15,7 +15,7 @@
 <script>
 (async () => {
   const { data: { session } } = await sb.auth.getSession();
-  location.replace(session ? '/pages/dashboard.html' : '/pages/login.html');
+  location.replace(session ? '/pages/dashboard' : '/pages/login');
 })();
 </script>
 </body></html>

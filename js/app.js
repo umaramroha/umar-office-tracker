@@ -27,18 +27,17 @@ UOT.hm = (minutes) => {
 
 UOT.requireSession = async () => {
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { location.href = '/pages/login.html'; return null; }
+  if (!session) { location.href = '/pages/login'; return null; }
   return session;
 };
 
 UOT.logout = async () => {
   await sb.auth.signOut();
-  location.href = '/pages/login.html';
+  location.href = '/pages/login';
 };
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').then(reg => {
-    // Force check for updates every time
-    reg.update();
-  }).catch(() => {});
-}
+// if ('serviceWorker' in navigator) {
+//   navigator.serviceWorker.register('/sw.js').then(reg => {
+//     reg.update();
+//   }).catch(() => {});
+// }

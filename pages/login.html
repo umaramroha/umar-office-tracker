@@ -56,8 +56,9 @@ document.getElementById('showSignup').onclick = () =>
 document.getElementById('loginBtn').onclick = async () => {
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
+
   if (!email || !password) return UOT.toast('Enter email and password');
-  try { await UOT.login(email, password); location.href = '/pages/dashboard.html'; }
+  try { await UOT.login(email, password); location.href = '/pages/dashboard'; }
   catch (e) { UOT.toast(e.message); }
 };
 
